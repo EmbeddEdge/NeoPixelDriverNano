@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-FASTLED_USING_NAMESPACE
-
 #if defined(FASTLED_VERSION) && (FASTLED_VERSION < 3001000)
 #warning "Requires FastLED 3.1 or later; check github for latest code."
 #endif
@@ -18,15 +16,12 @@ FASTLED_USING_NAMESPACE
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
 // ground, and power), like the LPD8806 define both DATA_PIN and CLOCK_PIN
 // Clock pin only needed for SPI based chipsets when not using hardware SPI
-#define DATA_PIN 3
+#define DATA_PIN 7
 //#define CLOCK_PIN 13
 
 // Define the array of leds
 CRGB leds[NUM_LEDS];
 CRGBArray<NUM_LEDS> ledsTF;
-
-#define BRIGHTNESS          96
-#define FRAMES_PER_SECOND  120
 
 // Overall twinkle speed.
 // 0 (VERY slow) to 8 (VERY fast).  
@@ -72,104 +67,21 @@ CRGB computeOneTwinkle( uint32_t, uint8_t);
 uint8_t attackDecayWave8(uint8_t);
 void coolLikeIncandescent( CRGB&, uint8_t);
 void chooseNextColorPalette( CRGBPalette16&);
-void rainbow(void); 
-void rainbowWithGlitter(void);
-void addGlitter(fract8); 
-void confetti(void); 
-void sinelon(void);
-void bpm(void);
-void juggle(void);
 //-----------------------------------------------------------------------------//
-
-uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
-uint8_t gHue = 0; // rotating "base color" used by many of the patterns
-
-#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
-
-// List of patterns to cycle through.  Each is defined as a separate function below.
-typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm };
-
-void nextPattern()
-{
-  // add one to the current pattern number, and wrap around at the end
-  gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE( gPatterns);
-}
-
-void rainbow() 
-{
-  // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, gHue, 7);
-}
-
-void rainbowWithGlitter() 
-{
-  // built-in FastLED rainbow, plus some random sparkly glitter
-  rainbow();
-  addGlitter(80);
-}
-
-void addGlitter( fract8 chanceOfGlitter) 
-{
-  if( random8() < chanceOfGlitter) {
-    leds[ random16(NUM_LEDS) ] += CRGB::White;
-  }
-}
-
-void confetti() 
-{
-  // random colored speckles that blink in and fade smoothly
-  fadeToBlackBy( leds, NUM_LEDS, 10);
-  int pos = random16(NUM_LEDS);
-  leds[pos] += CHSV( gHue + random8(64), 200, 255);
-}
-
-void sinelon()
-{
-  // a colored dot sweeping back and forth, with fading trails
-  fadeToBlackBy( leds, NUM_LEDS, 20);
-  int pos = beatsin16( 13, 0, NUM_LEDS-1 );
-  leds[pos] += CHSV( gHue, 255, 192);
-}
-
-void bpm()
-{
-  // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
-  uint8_t BeatsPerMinute = 62;
-  CRGBPalette16 palette = PartyColors_p;
-  uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
-  for( int i = 0; i < NUM_LEDS; i++) { //9948
-    leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
-  }
-}
-
-void juggle() {
-  // eight colored dots, weaving in and out of sync with each other
-  fadeToBlackBy( leds, NUM_LEDS, 20);
-  byte dothue = 0;
-  for( int i = 0; i < 8; i++) {
-    leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
-    dothue += 32;
-  }
-}
-
-
 
 void setup() { 
     // Uncomment/edit one of the following lines for your leds arrangement.
-  // ## Clockless types ##
-  delay(3000); //safety startup delay
-  FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-    //FastLED.addLeds<NEOPIXEL, DATA_PIN>(ledsTF, NUM_LEDS);  // GRB ordering is assumed
+    // ## Clockless types ##
+    delay(3000); //safety startup delay
+    FastLED.addLeds<NEOPIXEL, DATA_PIN>(ledsTF, NUM_LEDS);  // GRB ordering is assumed
     //FastLED.addLeds<WS2812B, DATA_PIN, RGB>(leds, NUM_LEDS);  // GRB ordering is typical
-  // set master brightness control
-  FastLED.setBrightness(BRIGHTNESS);
+    FastLED.setBrightness(255);
     //pinMode(DATA_PIN,OUTPUT);
-  //chooseNextColorPalette(gTargetPalette);
+  chooseNextColorPalette(gTargetPalette);
 }
 
 void loop() { 
-/*
+
   EVERY_N_SECONDS( SECONDS_PER_PALETTE ) { 
     chooseNextColorPalette( gTargetPalette ); 
   }
@@ -180,7 +92,7 @@ void loop() {
 
   drawTwinkles( ledsTF);
   
-  FastLED.show();*/
+  FastLED.show();
   /*
   //digitalWrite(DATA_PIN,HIGH);
   // Turn the LED on, then pause
@@ -206,17 +118,6 @@ void loop() {
   //FastLED.show();
   //delay(500);
   */
- // Call the current pattern function once, updating the 'leds' array
-  gPatterns[gCurrentPatternNumber]();
-
-  // send the 'leds' array out to the actual LED strip
-  FastLED.show();  
-  // insert a delay to keep the framerate modest
-  FastLED.delay(1000/FRAMES_PER_SECOND); 
-
-  // do some periodic updates
-  EVERY_N_MILLISECONDS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow
-  EVERY_N_SECONDS( 10 ) { nextPattern(); } // change patterns periodically
 }
 
 //  This function loops over each pixel, calculates the 
